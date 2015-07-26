@@ -347,6 +347,8 @@ void parseRGB(const std::string& css_str, size_t pos, size_t end, bool& matched,
 
     bool hasAlpha = match('a', css_str, pos, end);
 
+    skip_whitespace(css_str, pos, end);
+
     if (!match('(', css_str, pos, end)) { return; }
 
     float values[4] = { 0, 0, 0, 1 };
@@ -387,6 +389,8 @@ void parseHSL(const std::string& css_str, size_t pos, size_t end, bool& matched,
     matched = true;
 
     bool hasAlpha = match('a', css_str, pos, end);
+
+    skip_whitespace(css_str, pos, end);
 
     if (!match('(', css_str, pos, end)) { return; }
 
