@@ -19,4 +19,6 @@ int main() {
     std::cout << "rgba(0, 0, 0, 1) == " << parse("hsla(900, 15%, 90%)") << std::endl;
     std::cout << "rgba(226, 233, 233, 1) == " << parse("hsl(900, 15%, 90%)") << std::endl;
     std::cout << "rgba(226, 233, 233, 1) == " << parse("hsl(900, 0.15, 90%)") << std::endl;  // NOTE: not spec compliant.
+    std::cout << "rgba(0, 0, 0, 1) == " << parse("rgba(blah,blub,100,boing") << std::endl;
+
 }
