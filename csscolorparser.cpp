@@ -273,173 +273,172 @@ Color CSSColorParser::parse(const std::string& css_str) {
     return parse(css_str, valid);
 }
 
-Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
-    valid = false;
+void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& matched, bool& valid, Color& color) {
+    if (!match('#', css_str, pos, end)) {
+        return;
+    }
 
-    size_t pos = 0;
-    size_t end = css_str.length();
+    matched = true;
+    int read = 0;
 
+    //const char* str = css_str.c_str() + pos;
+    int64_t iv = parse_int(css_str, pos, read, 16);
+    if (iv < 0) {
+        // Invalid: out of range.
+        return;
+    }
+
+    pos += read;
     skip_whitespace(css_str, pos, end);
-    if (pos == end) {
-        return {};
-     }
+    if (pos != end) {
+        // Invalid: contains trailing chars.
+        return;
+    }
 
-    // #abc and #abc123 syntax.
-    if (match('#', css_str, pos, end)) {
+    if (read == 3) { // rgb
+        if (iv <= 0xfff) {
+            valid = true;
+            color = {
+                static_cast<uint8_t>(((iv & 0xf00) >> 4) | ((iv & 0xf00) >> 8)),
+                static_cast<uint8_t>((iv & 0xf0) | ((iv & 0xf0) >> 4)),
+                static_cast<uint8_t>((iv & 0xf) | ((iv & 0xf) << 4)),
+                1
+            };
+        }
+    } else if (read == 6) { // rrggbb
+        if (iv <= 0xffffff) {
+            valid = true;
+            color = {
+                static_cast<uint8_t>((iv & 0xff0000) >> 16),
+                static_cast<uint8_t>((iv & 0xff00) >> 8),
+                static_cast<uint8_t>(iv & 0xff),
+                1
+             };
+        }
+    } else if (read == 4) { // argb
+        if (iv <= 0xffff) {
+            valid = true;
+            color = {
+                static_cast<uint8_t>(((iv & 0xf00) >> 4) | ((iv & 0xf00) >> 8)),
+                static_cast<uint8_t>((iv & 0xf0) | ((iv & 0xf0) >> 4)),
+                static_cast<uint8_t>((iv & 0xf) | ((iv & 0xf) << 4)),
+                static_cast<uint8_t>((iv & 0xf000) >> 12) / 255.0f,
+            };
+        }
+    } else if (read == 8) { // aarrggbb
+        if (iv <= 0xffffffff) {
+            valid = true;
+            color = {
+                static_cast<uint8_t>((iv & 0xff0000) >> 16),
+                static_cast<uint8_t>((iv & 0xff00) >> 8),
+                static_cast<uint8_t>(iv & 0xff),
+                static_cast<uint8_t>((iv & 0xff000000) >> 24) / 255.0f,
+            };
+        }
+    }
+}
+
+void parseRGB(const std::string& css_str, size_t pos, size_t end, bool& matched, bool& valid, Color& color) {
+
+    if (!match_prefix("rgb", css_str, pos, end))
+        return;
+
+    matched = true;
+
+    bool hasAlpha = match('a', css_str, pos, end);
+
+    if (!match('(', css_str, pos, end)) { return; }
+
+    float values[4] = { 0, 0, 0, 1 };
+
+    for (int i = 0; i < (hasAlpha ? 4 : 3); i++) {
+        if (i > 0 && !match(',', css_str, pos, end)) { return; }
+
         int read = 0;
+        values[i] = parse_float(css_str, pos, read);
 
-        //const char* str = css_str.c_str() + pos;
-        int64_t iv = parse_int(css_str, pos, read, 16);
-        if (iv < 0) {
-            // Invalid: out of range.
-            return {};
-        }
-
+        if (read == 0) { return; }
         pos += read;
+
+        if (match('%', css_str, pos, end)) {
+            if (i < 3) {
+                values[i] = (values[i] / 100.0f * 255.0f);
+            } else {
+                values[i] = clamp_css_float(values[i] / 100.0f);
+            }
+        }
         skip_whitespace(css_str, pos, end);
-        if (pos != end) {
-            // Invalid: contains trailing chars.
-            return {};
-        }
+    }
+    if (!match(')', css_str, pos, end)) { return; }
 
-        if (read == 3) { // rgb
-            if (iv <= 0xfff) {
-                valid = true;
-                return {
-                    static_cast<uint8_t>(((iv & 0xf00) >> 4) | ((iv & 0xf00) >> 8)),
-                    static_cast<uint8_t>((iv & 0xf0) | ((iv & 0xf0) >> 4)),
-                    static_cast<uint8_t>((iv & 0xf) | ((iv & 0xf) << 4)),
-                    1
-                };
-            }
-        } else if (read == 6) { // rrggbb
-            if (iv <= 0xffffff) {
-                valid = true;
-                return {
-                    static_cast<uint8_t>((iv & 0xff0000) >> 16),
-                    static_cast<uint8_t>((iv & 0xff00) >> 8),
-                    static_cast<uint8_t>(iv & 0xff),
-                    1
-                };
-            }
-        } else if (read == 4) { // argb
-            if (iv <= 0xffff) {
-                valid = true;
-                return {
-                    static_cast<uint8_t>(((iv & 0xf00) >> 4) | ((iv & 0xf00) >> 8)),
-                    static_cast<uint8_t>((iv & 0xf0) | ((iv & 0xf0) >> 4)),
-                    static_cast<uint8_t>((iv & 0xf) | ((iv & 0xf) << 4)),
-                    static_cast<uint8_t>((iv & 0xf000) >> 12) / 255.0f,
-                };
-            }
-        } else if (read == 8) { // aarrggbb
-            if (iv <= 0xffffffff) {
-                valid = true;
-                return {
-                    static_cast<uint8_t>((iv & 0xff0000) >> 16),
-                    static_cast<uint8_t>((iv & 0xff00) >> 8),
-                    static_cast<uint8_t>(iv & 0xff),
-                    static_cast<uint8_t>((iv & 0xff000000) >> 24) / 255.0f,
-                };
+    valid = true;
+    color = {
+        clamp_css_byte(values[0]),
+        clamp_css_byte(values[1]),
+        clamp_css_byte(values[2]),
+        values[3]
+    };
+}
+
+void parseHSL(const std::string& css_str, size_t pos, size_t end, bool& matched, bool& valid, Color& color) {
+    if (!match_prefix("hsl", css_str, pos, end))
+        return;
+
+    matched = true;
+
+    bool hasAlpha = match('a', css_str, pos, end);
+
+    if (!match('(', css_str, pos, end)) { return; }
+
+    float values[4] = { 0, 0, 0, 1 };
+
+    for (int i = 0; i < (hasAlpha ? 4 : 3); i++) {
+        if (i > 0 && !match(',', css_str, pos, end)) { return; }
+
+        int read = 0;
+        values[i] = parse_float(css_str, pos, read);
+
+        if (read == 0) { return; }
+        pos += read;
+
+        if (match('%', css_str, pos, end)) {
+            // NB: previously the % was ignored in this case - make it an error?
+            if (i > 0) {
+                values[i] = clamp_css_float(values[i] / 100.0f);
             }
         }
-
-        return {};
+        skip_whitespace(css_str, pos, end);
     }
+    if (!match(')', css_str, pos, end)) { return; }
 
-    bool rgb, hsl = false, hasAlpha = false;
-    rgb = match_prefix("rgb", css_str, pos, end);
-    if (!rgb) {
-        hsl = match_prefix("hsl", css_str, pos, end);
-    }
-    if (rgb || hsl) {
-        hasAlpha = match('a', css_str, pos, end);
+    float h = values[0] / 360.0f;
+    while (h < 0.0f) h++;
+    while (h > 1.0f) h--;
 
-        if (!match('(', css_str, pos, end)) { return {}; }
-    }
+    // NOTE(deanm): According to the CSS spec s/l should only be
+    // percentages, but we don't bother and let float or percentage.
+    float s = values[1];
+    float l = values[2];
 
-    if (rgb) {
-        float values[4] = { 0, 0, 0, 1 };
+    float m2 = l <= 0.5f ? l * (s + 1.0f) : l + s - l * s;
+    float m1 = l * 2.0f - m2;
 
-        for (int i = 0; i < (hasAlpha ? 4 : 3); i++) {
-            if (i > 0 && !match(',', css_str, pos, end)) { return {}; }
+    valid = true;
+    color = {
+        clamp_css_byte(css_hue_to_rgb(m1, m2, h + 1.0f / 3.0f) * 255.0f),
+        clamp_css_byte(css_hue_to_rgb(m1, m2, h) * 255.0f),
+        clamp_css_byte(css_hue_to_rgb(m1, m2, h - 1.0f / 3.0f) * 255.0f),
+        values[3]
+    };
+}
 
-            int read = 0;
-            values[i] = parse_float(css_str, pos, read);
-
-            if (read == 0) { return {}; }
-            pos += read;
-
-            if (match('%', css_str, pos, end)) {
-                if (i < 3) {
-                    values[i] = (values[i] / 100.0f * 255.0f);
-                } else {
-                    values[i] = clamp_css_float(values[i] / 100.0f);
-                }
-            }
-            skip_whitespace(css_str, pos, end);
-        }
-        if (!match(')', css_str, pos, end)) { return {}; }
-
-        valid = true;
-        return {
-            clamp_css_byte(values[0]),
-            clamp_css_byte(values[1]),
-            clamp_css_byte(values[2]),
-            values[3]
-        };
-
-    } else if (hsl) {
-
-        float values[4] = { 0, 0, 0, 1 };
-
-        for (int i = 0; i < (hasAlpha ? 4 : 3); i++) {
-            if (i > 0 && !match(',', css_str, pos, end)) { return {}; }
-
-            int read = 0;
-            values[i] = parse_float(css_str, pos, read);
-
-            if (read == 0) { return {}; }
-            pos += read;
-
-            if (match('%', css_str, pos, end)) {
-                // NB: previously the % was ignored in this case - make it an error?
-                if (i > 0) {
-                    values[i] = clamp_css_float(values[i] / 100.0f);
-                }
-            }
-            skip_whitespace(css_str, pos, end);
-        }
-        if (!match(')', css_str, pos, end)) { return {}; }
-
-        float h = values[0] / 360.0f;
-        while (h < 0.0f) h++;
-        while (h > 1.0f) h--;
-
-        // NOTE(deanm): According to the CSS spec s/l should only be
-        // percentages, but we don't bother and let float or percentage.
-        float s = values[1];
-        float l = values[2];
-
-        float m2 = l <= 0.5f ? l * (s + 1.0f) : l + s - l * s;
-        float m1 = l * 2.0f - m2;
-
-        valid = true;
-        return {
-            clamp_css_byte(css_hue_to_rgb(m1, m2, h + 1.0f / 3.0f) * 255.0f),
-            clamp_css_byte(css_hue_to_rgb(m1, m2, h) * 255.0f),
-            clamp_css_byte(css_hue_to_rgb(m1, m2, h - 1.0f / 3.0f) * 255.0f),
-            values[3]
-        };
-    }
-
+void parseNamedColor(const std::string& css_str, size_t pos, size_t end, bool& valid, Color& color){
     // TODO: ignore trailing whitespace?
-
     size_t length = end - pos;
 
     // Skip if longer than longest named color
     if (length > 20)
-        return {};
+        return;
 
     // Convert to lowercase.
     char cstr[32];
@@ -457,9 +456,40 @@ Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
 
     if (it != itEnd && std::strcmp(it->name, cstr) == 0) {
         valid = true;
-        return it->color;
+        color = it->color;
+    }
+}
+
+
+Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
+    valid = false;
+
+    size_t pos = 0;
+    size_t end = css_str.length();
+    bool matched = false;
+    Color color;
+
+    skip_whitespace(css_str, pos, end);
+    if (pos == end) {
+        return {};
     }
 
-    // No named color found
-    return {};
+    parseHexRGB(css_str, pos, end, matched, valid, color);
+    if (matched) {
+        return color;
+    }
+
+    parseRGB(css_str, pos, end, matched, valid, color);
+    if (matched) {
+        return color;
+    }
+
+    parseHSL(css_str, pos, end, matched, valid, color);
+    if (matched) {
+        return color;
+    }
+
+    parseNamedColor(css_str, pos, end, valid, color);
+
+    return color;
 }
