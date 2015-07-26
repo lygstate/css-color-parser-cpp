@@ -37,6 +37,8 @@ struct Color {
     float a = 1.0f;
 };
 
+
+Color parse(const std::string& css_str, bool& isValid);
 Color parse(const std::string& css_str);
 
 }
