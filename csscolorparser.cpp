@@ -203,35 +203,20 @@ float clamp_css_float(T f) {  // Clamp to float 0.0 .. 1.0.
     return f < 0 ? 0 : f > 1 ? 1 : f;
 }
 
-float parse_float(const std::string& str) {
-    return strtof(str.c_str(), nullptr);
-}
-
-int64_t parse_int(const char* str, int& read, uint8_t base) {
-    char *pos = nullptr;
-    int64_t val = strtoll(str, &pos, base);
-    read = pos - str;
+int64_t parse_int(const std::string& str, int pos, int& read, uint8_t base) {
+    const char *s = str.c_str() + pos;
+    char *end = nullptr;
+    int64_t val = strtoll(s, &end, base);
+    read = end - s;
     return val;
 }
 
-int64_t parse_int(const std::string& str) {
-    return strtoll(str.c_str(), nullptr, 10);
-}
-
-uint8_t parse_css_int(const std::string& str) {  // int or percentage.
-    if (str.length() && str.back() == '%') {
-        return clamp_css_byte(parse_float(str) / 100.0f * 255.0f);
-    } else {
-        return clamp_css_byte(parse_int(str));
-    }
-}
-
-float parse_css_float(const std::string& str) {  // float or percentage.
-    if (str.length() && str.back() == '%') {
-        return clamp_css_float(parse_float(str) / 100.0f);
-    } else {
-        return clamp_css_float(parse_float(str));
-    }
+float parse_float(const std::string& str, int pos, int& read) {
+    const char *s = str.c_str() + pos;
+    char *end = nullptr;
+    float val = strtof(s, &end);
+    read = end - s;
+    return val;
 }
 
 float css_hue_to_rgb(float m1, float m2, float h) {
@@ -254,7 +239,7 @@ float css_hue_to_rgb(float m1, float m2, float h) {
 }
 
 bool match(char c, const std::string& text, size_t& pos, size_t end) {
-    if (end < pos + 1)
+    if (pos >= end)
         return false;
 
     if (c != tolower(text[pos]))
@@ -266,7 +251,7 @@ bool match(char c, const std::string& text, size_t& pos, size_t end) {
 
 bool match_prefix(const std::string& prefix, const std::string& text, size_t& pos, size_t end) {
     size_t length = prefix.size();
-    if (end < length + pos)
+    if (length + pos > end)
         return false;
 
     for (size_t i = 0; i < length; ++i)
@@ -281,18 +266,6 @@ void skip_whitespace(const std::string& text, size_t& pos, size_t end){
     while((pos < end) && (text[pos] == ' ')) {
         pos++;
     }
-}
-
-std::vector<std::string> split(const std::string& s, char delim, size_t position) {
-    std::vector<std::string> elems;
-    std::stringstream ss(s);
-    ss.seekg(position);
-
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
-    return elems;
 }
 
 Color CSSColorParser::parse(const std::string& css_str) {
@@ -315,8 +288,8 @@ Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
     if (match('#', css_str, pos, end)) {
         int read = 0;
 
-        const char* str = css_str.c_str() + pos;
-        int64_t iv = parse_int(str, read, 16);
+        //const char* str = css_str.c_str() + pos;
+        int64_t iv = parse_int(css_str, pos, read, 16);
         if (iv < 0) {
             // Invalid: out of range.
             return {};
@@ -374,77 +347,93 @@ Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
         return {};
     }
 
-    bool rgb, hsl = false;
+    bool rgb, hsl = false, hasAlpha = false;
     rgb = match_prefix("rgb", css_str, pos, end);
     if (!rgb) {
         hsl = match_prefix("hsl", css_str, pos, end);
     }
     if (rgb || hsl) {
+        hasAlpha = match('a', css_str, pos, end);
 
-        bool hasAlpha = match('a', css_str, pos, end);
-
-        if (!match('(', css_str, pos, end)) {
-            return {};
-        }
-
-        // TODO: validation
-        const std::vector<std::string> params = split(css_str, ',', pos);
-
-        float alpha = 1.0f;
-
-        if (rgb) {
-            if (hasAlpha) {
-                if (params.size() != 4) {
-                    return {};
-                }
-                alpha = parse_css_float(params.back());
-            } else {
-                if (params.size() != 3) {
-                    return {};
-                }
-            }
-
-            valid = true;
-            return {
-                parse_css_int(params[0]),
-                parse_css_int(params[1]),
-                parse_css_int(params[2]),
-                alpha
-            };
-
-        } else if (hsl) {
-            if (hasAlpha) {
-                if (params.size() != 4) {
-                    return {};
-                }
-                alpha = parse_css_float(params.back());
-            } else {
-                if (params.size() != 3) {
-                    return {};
-                }
-            }
-
-            float h = parse_float(params[0].c_str()) / 360.0f;
-            while (h < 0.0f) h++;
-            while (h > 1.0f) h--;
-
-            // NOTE(deanm): According to the CSS spec s/l should only be
-            // percentages, but we don't bother and let float or percentage.
-            float s = parse_css_float(params[1]);
-            float l = parse_css_float(params[2]);
-
-            float m2 = l <= 0.5f ? l * (s + 1.0f) : l + s - l * s;
-            float m1 = l * 2.0f - m2;
-
-            valid = true;
-            return {
-                clamp_css_byte(css_hue_to_rgb(m1, m2, h + 1.0f / 3.0f) * 255.0f),
-                clamp_css_byte(css_hue_to_rgb(m1, m2, h) * 255.0f),
-                clamp_css_byte(css_hue_to_rgb(m1, m2, h - 1.0f / 3.0f) * 255.0f),
-                alpha
-            };
-        }
+        if (!match('(', css_str, pos, end)) { return {}; }
     }
+
+    if (rgb) {
+        float values[4] = { 0, 0, 0, 1 };
+
+        for (int i = 0; i < (hasAlpha ? 4 : 3); i++) {
+            if (i > 0 && !match(',', css_str, pos, end)) { return {}; }
+
+            int read = 0;
+            values[i] = parse_float(css_str, pos, read);
+
+            if (read == 0) { return {}; }
+            pos += read;
+
+            if (match('%', css_str, pos, end)) {
+                if (i < 3) {
+                    values[i] = (values[i] / 100.0f * 255.0f);
+                } else {
+                    values[i] = clamp_css_float(values[i] / 100.0f);
+                }
+            }
+            skip_whitespace(css_str, pos, end);
+        }
+        if (!match(')', css_str, pos, end)) { return {}; }
+
+        valid = true;
+        return {
+            clamp_css_byte(values[0]),
+            clamp_css_byte(values[1]),
+            clamp_css_byte(values[2]),
+            values[3]
+        };
+
+    } else if (hsl) {
+
+        float values[4] = { 0, 0, 0, 1 };
+
+        for (int i = 0; i < (hasAlpha ? 4 : 3); i++) {
+            if (i > 0 && !match(',', css_str, pos, end)) { return {}; }
+
+            int read = 0;
+            values[i] = parse_float(css_str, pos, read);
+
+            if (read == 0) { return {}; }
+            pos += read;
+
+            if (match('%', css_str, pos, end)) {
+                // NB: previously the % was ignored in this case - make it an error?
+                if (i > 0) {
+                    values[i] = clamp_css_float(values[i] / 100.0f);
+                }
+            }
+            skip_whitespace(css_str, pos, end);
+        }
+        if (!match(')', css_str, pos, end)) { return {}; }
+
+        float h = values[0] / 360.0f;
+        while (h < 0.0f) h++;
+        while (h > 1.0f) h--;
+
+        // NOTE(deanm): According to the CSS spec s/l should only be
+        // percentages, but we don't bother and let float or percentage.
+        float s = values[1];
+        float l = values[2];
+
+        float m2 = l <= 0.5f ? l * (s + 1.0f) : l + s - l * s;
+        float m1 = l * 2.0f - m2;
+
+        valid = true;
+        return {
+            clamp_css_byte(css_hue_to_rgb(m1, m2, h + 1.0f / 3.0f) * 255.0f),
+            clamp_css_byte(css_hue_to_rgb(m1, m2, h) * 255.0f),
+            clamp_css_byte(css_hue_to_rgb(m1, m2, h - 1.0f / 3.0f) * 255.0f),
+            values[3]
+        };
+    }
+
+    // TODO: ignore trailing whitespace?
 
     size_t length = end - pos;
 
