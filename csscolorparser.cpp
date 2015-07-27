@@ -269,16 +269,6 @@ void skip_whitespace(const std::string& text, size_t& pos, size_t end){
     }
 }
 
-uint32_t CSSColorParser::Color::getInt() {
-    uint32_t color = ((uint32_t)(255.0 * a) << 24) + ((uint32_t)b << 16) + ((uint32_t)g << 8) + ((uint32_t)r);
-    return color;
-}
-
-Color CSSColorParser::parse(const std::string& css_str) {
-    bool valid;
-    return parse(css_str, valid);
-}
-
 void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& matched, bool& valid, Color& color) {
     if (!match('#', css_str, pos, end)) {
         return;
@@ -471,6 +461,16 @@ void parseNamedColor(const std::string& css_str, size_t pos, size_t end, bool& v
 }
 
 
+uint32_t CSSColorParser::Color::getInt() {
+    uint32_t color = ((uint32_t)(255.0 * a) << 24) + ((uint32_t)b << 16) + ((uint32_t)g << 8) + ((uint32_t)r);
+    return color;
+}
+
+Color CSSColorParser::parse(const std::string& css_str) {
+    bool valid;
+    return parse(css_str, valid);
+}
+
 Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
     valid = false;
 
@@ -484,22 +484,24 @@ Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
         return {};
     }
 
-    parseHexRGB(css_str, pos, end, matched, valid, color);
-    if (matched) {
-        return color;
+    switch(*(css_str.c_str() + pos)) {
+        case '#':
+            parseHexRGB(css_str, pos, end, matched, valid, color);
+            break;
+
+        case 'r':
+        case 'R':
+            parseRGB(css_str, pos, end, matched, valid, color);
+            break;
+
+        case 'h':
+        case 'H':
+            parseHSL(css_str, pos, end, matched, valid, color);
+            break;
     }
 
-    parseRGB(css_str, pos, end, matched, valid, color);
-    if (matched) {
-        return color;
-    }
-
-    parseHSL(css_str, pos, end, matched, valid, color);
-    if (matched) {
-        return color;
-    }
-
-    parseNamedColor(css_str, pos, end, valid, color);
+    if (!matched)
+        parseNamedColor(css_str, pos, end, valid, color);
 
     return color;
 }
