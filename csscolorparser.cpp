@@ -250,7 +250,7 @@ bool match(char c, const std::string& text, size_t& pos, size_t end) {
     return true;
 }
 
-bool match_prefix(const char* prefix, const std::string& text, size_t& pos, size_t end) {
+bool match(const char* prefix, const std::string& text, size_t& pos, size_t end) {
     size_t length = strlen(prefix);
     if (length + pos > end)
         return false;
@@ -264,16 +264,13 @@ bool match_prefix(const char* prefix, const std::string& text, size_t& pos, size
 }
 
 void skip_whitespace(const std::string& text, size_t& pos, size_t end){
-    while((pos < end) && (text[pos] == ' ')) {
+    while ((pos < end) && (text[pos] == ' ')) {
         pos++;
     }
 }
 
 Color parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid) {
-
     int read = 0;
-
-    //const char* str = css_str.c_str() + pos;
     int64_t iv = parse_int(css_str, pos, read, 16);
     if (iv < 0) {
         // Invalid: out of range.
@@ -477,14 +474,14 @@ Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
 
         case 'r':
         case 'R':
-            if (match_prefix("rgb", css_str, pos, end)) {
+            if (match("rgb", css_str, pos, end)) {
                 return parseRGB(css_str, pos, end, valid);
             }
             break;
 
         case 'h':
         case 'H':
-            if (match_prefix("hsl", css_str, pos, end)) {
+            if (match("hsl", css_str, pos, end)) {
                 return parseHSL(css_str, pos, end, valid);
             }
             break;
