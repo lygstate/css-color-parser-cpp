@@ -28,9 +28,18 @@
 #include <string>
 
 namespace CSSColorParser {
+struct ConstColor {
+    constexpr inline ConstColor(unsigned char r, unsigned char g, unsigned char b, float a)
+        : r(r), g(g), b(b), a(a) {}
+    const unsigned char r = 0, g = 0, b = 0;
+    const float a = 1.0f;
+};
 
 struct Color {
     inline Color() {}
+    inline Color(const ConstColor& c)
+        : r(c.r), g(c.g), b(c.b), a(c.a) {}
+
     inline Color(unsigned char r, unsigned char g, unsigned char b, float a)
         : r(r), g(g), b(b), a(a) {}
     unsigned char r = 0, g = 0, b = 0;

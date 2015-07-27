@@ -37,8 +37,9 @@
 using namespace CSSColorParser;
 
 // http://www.w3.org/TR/css3-color/
-struct NamedColor { const char *const name; const Color color; };
-const NamedColor namedColors[] = {
+struct NamedColor { const char *const name; const ConstColor color; };
+
+constexpr NamedColor namedColors[] = {
     { "aliceblue", { 240, 248, 255, 1 } },
     { "antiquewhite", { 250, 235, 215, 1 } },
     { "aqua", { 0, 255, 255, 1 } },
