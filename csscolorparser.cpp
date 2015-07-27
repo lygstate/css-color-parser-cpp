@@ -250,8 +250,8 @@ bool match(char c, const std::string& text, size_t& pos, size_t end) {
     return true;
 }
 
-bool match_prefix(const std::string& prefix, const std::string& text, size_t& pos, size_t end) {
-    size_t length = prefix.size();
+bool match_prefix(const char* prefix, const std::string& text, size_t& pos, size_t end) {
+    size_t length = strlen(prefix);
     if (length + pos > end)
         return false;
 
@@ -269,7 +269,7 @@ void skip_whitespace(const std::string& text, size_t& pos, size_t end){
     }
 }
 
-void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid, Color& color) {
+Color parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid) {
 
     int read = 0;
 
@@ -277,20 +277,20 @@ void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid
     int64_t iv = parse_int(css_str, pos, read, 16);
     if (iv < 0) {
         // Invalid: out of range.
-        return;
+        return {};
     }
 
     pos += read;
     skip_whitespace(css_str, pos, end);
     if (pos != end) {
         // Invalid: contains trailing chars.
-        return;
+        return {};
     }
 
     if (read == 3) { // rgb
         if (iv <= 0xfff) {
             valid = true;
-            color = {
+            return {
                 static_cast<uint8_t>(((iv & 0xf00) >> 4) | ((iv & 0xf00) >> 8)),
                 static_cast<uint8_t>((iv & 0xf0) | ((iv & 0xf0) >> 4)),
                 static_cast<uint8_t>((iv & 0xf) | ((iv & 0xf) << 4)),
@@ -300,7 +300,7 @@ void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid
     } else if (read == 6) { // rrggbb
         if (iv <= 0xffffff) {
             valid = true;
-            color = {
+            return {
                 static_cast<uint8_t>((iv & 0xff0000) >> 16),
                 static_cast<uint8_t>((iv & 0xff00) >> 8),
                 static_cast<uint8_t>(iv & 0xff),
@@ -310,7 +310,7 @@ void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid
     } else if (read == 4) { // argb
         if (iv <= 0xffff) {
             valid = true;
-            color = {
+            return {
                 static_cast<uint8_t>(((iv & 0xf00) >> 4) | ((iv & 0xf00) >> 8)),
                 static_cast<uint8_t>((iv & 0xf0) | ((iv & 0xf0) >> 4)),
                 static_cast<uint8_t>((iv & 0xf) | ((iv & 0xf) << 4)),
@@ -320,7 +320,7 @@ void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid
     } else if (read == 8) { // aarrggbb
         if (iv <= 0xffffffff) {
             valid = true;
-            color = {
+            return {
                 static_cast<uint8_t>((iv & 0xff0000) >> 16),
                 static_cast<uint8_t>((iv & 0xff00) >> 8),
                 static_cast<uint8_t>(iv & 0xff),
@@ -328,30 +328,26 @@ void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid
             };
         }
     }
+    return {};
 }
 
-void parseRGB(const std::string& css_str, size_t pos, size_t end, bool& matched, bool& valid, Color& color) {
-
-    if (!match_prefix("rgb", css_str, pos, end))
-        return;
-
-    matched = true;
+Color  parseRGB(const std::string& css_str, size_t pos, size_t end, bool& valid) {
 
     bool hasAlpha = match('a', css_str, pos, end);
 
     skip_whitespace(css_str, pos, end);
 
-    if (!match('(', css_str, pos, end)) { return; }
+    if (!match('(', css_str, pos, end)) { return {}; }
 
     float values[4] = { 0, 0, 0, 1 };
 
     for (int i = 0; i < (hasAlpha ? 4 : 3); i++) {
-        if (i > 0 && !match(',', css_str, pos, end)) { return; }
+        if (i > 0 && !match(',', css_str, pos, end)) { return {}; }
 
         int read = 0;
         values[i] = parse_float(css_str, pos, read);
 
-        if (read == 0) { return; }
+        if (read == 0) { return {}; }
         pos += read;
 
         if (match('%', css_str, pos, end)) {
@@ -363,10 +359,10 @@ void parseRGB(const std::string& css_str, size_t pos, size_t end, bool& matched,
         }
         skip_whitespace(css_str, pos, end);
     }
-    if (!match(')', css_str, pos, end)) { return; }
+    if (!match(')', css_str, pos, end)) { return {}; }
 
     valid = true;
-    color = {
+    return {
         clamp_css_byte(values[0]),
         clamp_css_byte(values[1]),
         clamp_css_byte(values[2]),
@@ -374,27 +370,23 @@ void parseRGB(const std::string& css_str, size_t pos, size_t end, bool& matched,
     };
 }
 
-void parseHSL(const std::string& css_str, size_t pos, size_t end, bool& matched, bool& valid, Color& color) {
-    if (!match_prefix("hsl", css_str, pos, end))
-        return;
-
-    matched = true;
+Color parseHSL(const std::string& css_str, size_t pos, size_t end, bool& valid) {
 
     bool hasAlpha = match('a', css_str, pos, end);
 
     skip_whitespace(css_str, pos, end);
 
-    if (!match('(', css_str, pos, end)) { return; }
+    if (!match('(', css_str, pos, end)) { return {}; }
 
     float values[4] = { 0, 0, 0, 1 };
 
     for (int i = 0; i < (hasAlpha ? 4 : 3); i++) {
-        if (i > 0 && !match(',', css_str, pos, end)) { return; }
+        if (i > 0 && !match(',', css_str, pos, end)) { return {}; }
 
         int read = 0;
         values[i] = parse_float(css_str, pos, read);
 
-        if (read == 0) { return; }
+        if (read == 0) { return {}; }
         pos += read;
 
         if (match('%', css_str, pos, end)) {
@@ -405,7 +397,7 @@ void parseHSL(const std::string& css_str, size_t pos, size_t end, bool& matched,
         }
         skip_whitespace(css_str, pos, end);
     }
-    if (!match(')', css_str, pos, end)) { return; }
+    if (!match(')', css_str, pos, end)) { return {}; }
 
     float h = values[0] / 360.0f;
     while (h < 0.0f) h++;
@@ -420,7 +412,7 @@ void parseHSL(const std::string& css_str, size_t pos, size_t end, bool& matched,
     float m1 = l * 2.0f - m2;
 
     valid = true;
-    color = {
+    return {
         clamp_css_byte(css_hue_to_rgb(m1, m2, h + 1.0f / 3.0f) * 255.0f),
         clamp_css_byte(css_hue_to_rgb(m1, m2, h) * 255.0f),
         clamp_css_byte(css_hue_to_rgb(m1, m2, h - 1.0f / 3.0f) * 255.0f),
@@ -428,13 +420,13 @@ void parseHSL(const std::string& css_str, size_t pos, size_t end, bool& matched,
     };
 }
 
-void parseNamedColor(const std::string& css_str, size_t pos, size_t end, bool& valid, Color& color){
+Color parseNamedColor(const std::string& css_str, size_t pos, size_t end, bool& valid){
     // TODO: ignore trailing whitespace?
     size_t length = end - pos;
 
     // Skip if longer than longest named color
     if (length > 20)
-        return;
+        return {};
 
     // Convert to lowercase.
     char cstr[32];
@@ -452,8 +444,9 @@ void parseNamedColor(const std::string& css_str, size_t pos, size_t end, bool& v
 
     if (it != itEnd && std::strcmp(it->name, cstr) == 0) {
         valid = true;
-        color = it->color;
+        return it->color;
     }
+    return {};
 }
 
 
@@ -472,33 +465,30 @@ Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
 
     size_t pos = 0;
     size_t end = css_str.length();
-    bool matched = false;
-    Color color;
 
     skip_whitespace(css_str, pos, end);
     if (pos == end) {
         return {};
     }
 
-    switch(*(css_str.c_str() + pos)) {
+    switch(css_str[pos]) {
         case '#':
-            parseHexRGB(css_str, pos+1, end, valid, color);
-            matched = true;
-            break;
+            return parseHexRGB(css_str, pos+1, end, valid);
 
         case 'r':
         case 'R':
-            parseRGB(css_str, pos, end, matched, valid, color);
+            if (match_prefix("rgb", css_str, pos, end)) {
+                return parseRGB(css_str, pos, end, valid);
+            }
             break;
 
         case 'h':
         case 'H':
-            parseHSL(css_str, pos, end, matched, valid, color);
+            if (match_prefix("hsl", css_str, pos, end)) {
+                return parseHSL(css_str, pos, end, valid);
+            }
             break;
     }
 
-    if (!matched)
-        parseNamedColor(css_str, pos, end, valid, color);
-
-    return color;
+    return parseNamedColor(css_str, pos, end, valid);
 }
