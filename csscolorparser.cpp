@@ -269,12 +269,8 @@ void skip_whitespace(const std::string& text, size_t& pos, size_t end){
     }
 }
 
-void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& matched, bool& valid, Color& color) {
-    if (!match('#', css_str, pos, end)) {
-        return;
-    }
+void parseHexRGB(const std::string& css_str, size_t pos, size_t end, bool& valid, Color& color) {
 
-    matched = true;
     int read = 0;
 
     //const char* str = css_str.c_str() + pos;
@@ -486,7 +482,8 @@ Color CSSColorParser::parse(const std::string& css_str, bool& valid) {
 
     switch(*(css_str.c_str() + pos)) {
         case '#':
-            parseHexRGB(css_str, pos, end, matched, valid, color);
+            parseHexRGB(css_str, pos+1, end, valid, color);
+            matched = true;
             break;
 
         case 'r':
