@@ -447,9 +447,8 @@ Color parseNamedColor(const std::string& css_str, size_t pos, size_t end, bool& 
 }
 
 
-uint32_t CSSColorParser::Color::getInt() {
-    uint32_t color = ((uint32_t)(255.0 * a) << 24) + ((uint32_t)b << 16) + ((uint32_t)g << 8) + ((uint32_t)r);
-    return color;
+uint32_t CSSColorParser::Color::getInt() const {
+    return ((uint32_t)(255.0 * a) << 24) + ((uint32_t)b << 16) + ((uint32_t)g << 8) + ((uint32_t)r);
 }
 
 Color CSSColorParser::parse(const std::string& css_str) {

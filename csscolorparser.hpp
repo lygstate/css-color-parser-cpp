@@ -44,7 +44,7 @@ struct Color {
         : r(r), g(g), b(b), a(a) {}
     unsigned char r = 0, g = 0, b = 0;
     float a = 1.0f;
-    uint32_t getInt();
+    uint32_t getInt() const;
 };
 
 
