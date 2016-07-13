@@ -33,6 +33,7 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <cctype>
 
 using namespace CSSColorParser;
 
